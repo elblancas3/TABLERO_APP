@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tablero · Campo Geomática MX</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --acc:#D85A30;--bg:#0a0a0a;--surf:#131313;--surf2:#1a1a1a;
+  --brd:#232323;--brd2:#2e2e2e;--txt:#e8e4dc;--mut:#555;--mut2:#777;
+  --grn:#6fcf7e;--blu:#5B9BD5;--yel:#C9A84C;--red:#cf6e6e;
+  --font:"IBM Plex Mono","Courier New",monospace;
+}
+html,body{height:100%;background:var(--bg);color:var(--txt);font-family:var(--font);font-size:13px}
+
+#topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--brd);background:var(--surf);gap:12px;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-dot{width:8px;height:8px;border-radius:50%;background:var(--acc);animation:pulse 2.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.logo-title{font-size:12px;font-weight:700;letter-spacing:3px;text-transform:uppercase}
+.logo-sub{font-size:9px;color:var(--mut2);letter-spacing:2px;text-transform:uppercase;margin-top:2px}
+.topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#last-update{font-size:10px;color:var(--mut2)}
+#estado{font-size:9px;padding:3px 8px;border-radius:2px;letter-spacing:1px;border:1px solid var(--brd);background:var(--bg)}
+#estado.ok{color:var(--grn);border-color:#2d5a2d}
+#estado.err{color:var(--red);border-color:#5a2020}
+#estado.loading{color:var(--yel);border-color:#4a3a10}
+#btn-reload{padding:7px 14px;background:var(--acc);border:none;border-radius:3px;color:#fff;font-family:var(--font);font-size:10px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700;transition:opacity .2s}
+#btn-reload:hover{opacity:.8}
+#btn-reload:disabled{opacity:.4;cursor:not-allowed}
+
+.main{padding:16px 20px;display:flex;flex-direction:column;gap:14px}
+
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.kpi{background:var(--surf);border:1px solid var(--brd);border-radius:4px;padding:14px 16px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--ac,var(--acc))}
+.kpi-label{font-size:9px;color:var(--mut2);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.kpi-val{font-size:26px;font-weight:700;line-height:1;margin-bottom:4px}
+.kpi-sub{font-size:10px;color:var(--mut2)}
+
+.filtros-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--surf);border:1px solid var(--brd);border-radius:4px;padding:10px 14px}
+.filtros-bar label{font-size:9px;color:var(--mut2);letter-spacing:2px;text-transform:uppercase;margin-right:4px}
+.filtros-bar select{background:var(--bg);border:1px solid var(--brd2);border-radius:3px;color:var(--txt);font-family:var(--font);font-size:11px;padding:5px 8px;cursor:pointer;outline:none;min-width:150px}
+.filtros-bar select:focus{border-color:var(--acc)}
+.filtros-bar select option{background:var(--surf2)}
+#btn-limpiar{padding:5px 12px;background:transparent;border:1px solid var(--brd2);border-radius:3px;color:var(--mut2);font-family:var(--font);font-size:9px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all .2s}
+#btn-limpiar:hover{border-color:var(--acc);color:var(--acc)}
+#filtro-count{font-size:10px;color:var(--acc);margin-left:auto}
+
+.mid-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;height:360px}
+.panel{background:var(--surf);border:1px solid var(--brd);border-radius:4px;overflow:hidden;display:flex;flex-direction:column}
+.panel-hdr{padding:9px 14px;border-bottom:1px solid var(--brd);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--acc);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-hdr span{color:var(--mut2);font-size:9px}
+#map{flex:1;min-height:0}
+.chart-wrap{flex:1;padding:10px;position:relative;min-height:0}
+
+.bot-row{display:grid;grid-template-columns:320px 1fr;gap:12px}
+.analisis-item{padding:11px 14px;border-bottom:1px solid var(--brd);display:flex;align-items:flex-start;gap:10px}
+.analisis-item:last-child{border-bottom:none}
+.analisis-icon{font-size:15px;flex-shrink:0;margin-top:1px}
+.analisis-ttl{font-size:9px;color:var(--mut2);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px}
+.analisis-val{font-size:11px;color:var(--txt);line-height:1.6}
+.analisis-val b{color:var(--acc)}
+
+.table-wrap{flex:1;overflow-y:auto;max-height:340px}
+table{width:100%;border-collapse:collapse}
+thead th{position:sticky;top:0;background:var(--surf);padding:8px 10px;text-align:left;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--mut2);border-bottom:1px solid var(--brd);font-weight:400}
+tbody tr{border-bottom:1px solid var(--brd);transition:background .15s}
+tbody tr:hover{background:var(--surf2)}
+tbody td{padding:7px 10px;font-size:11px}
+.tag{display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;border:1px solid;white-space:nowrap}
+.tag-inc{color:var(--acc);border-color:var(--acc);background:rgba(216,90,48,.1)}
+.tag-edu{color:var(--blu);border-color:var(--blu);background:rgba(91,155,213,.1)}
+.tag-sal{color:var(--grn);border-color:var(--grn);background:rgba(111,207,126,.1)}
+.tag-viv{color:var(--yel);border-color:var(--yel);background:rgba(201,168,76,.1)}
+.tag-gen{color:var(--mut2);border-color:var(--brd)}
+.grado-muy-alto{color:var(--red)}
+.grado-alto{color:#D35400}
+.grado-medio{color:var(--yel)}
+.grado-bajo{color:var(--blu)}
+.empty-state{padding:30px;text-align:center;color:var(--mut2);font-size:11px}
+
+.leaflet-popup-content-wrapper{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:3px;color:#e8e4dc;font-family:'IBM Plex Mono',monospace;font-size:11px;box-shadow:0 4px 20px rgba(0,0,0,.6)}
+.leaflet-popup-tip{background:#1a1a1a}
+.leaflet-popup-close-button{color:#555!important}
+
+/* Cluster personalizado */
+.marker-cluster-small,.marker-cluster-medium,.marker-cluster-large{background:rgba(216,90,48,.25)!important}
+.marker-cluster-small div,.marker-cluster-medium div,.marker-cluster-large div{background:rgba(216,90,48,.75)!important;color:#fff!important;font-family:'IBM Plex Mono',monospace!important;font-size:11px!important;font-weight:700!important}
+.marker-cluster{border:2px solid rgba(216,90,48,.5)!important}
+
+@media(max-width:900px){
+  .kpi-row{grid-template-columns:repeat(2,1fr)}
+  .mid-row,.bot-row{grid-template-columns:1fr;height:auto}
+  #map{height:280px}
+}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <div>
+      <div class="logo-title">Campo · Tablero ZMM</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div id="last-update">Sin datos</div>
+    <div id="estado" class="loading">● Esperando</div>
+    <button id="btn-reload" onclick="cargarDatos()">↺ Actualizar</button>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="kpi-row">
+    <div class="kpi" style="--ac:var(--acc)">
+      <div class="kpi-label">Total registros</div>
+      <div class="kpi-val" id="kpi-total">—</div>
+      <div class="kpi-sub" id="kpi-total-sub">cargando…</div>
+    </div>
+    <div class="kpi" style="--ac:var(--blu)">
+      <div class="kpi-label">Municipios</div>
+      <div class="kpi-val" id="kpi-mun">—</div>
+      <div class="kpi-sub" id="kpi-mun-sub">cargando…</div>
+    </div>
+    <div class="kpi" style="--ac:var(--yel)">
+      <div class="kpi-label">Observación top</div>
+      <div class="kpi-val" id="kpi-top-val" style="font-size:13px;padding-top:6px">—</div>
+      <div class="kpi-sub" id="kpi-top-sub">cargando…</div>
+    </div>
+    <div class="kpi" style="--ac:var(--grn)">
+      <div class="kpi-label">Último registro</div>
+      <div class="kpi-val" id="kpi-ult" style="font-size:13px;padding-top:6px">—</div>
+      <div class="kpi-sub" id="kpi-ult-sub">cargando…</div>
+    </div>
+  </div>
+
+  <div class="filtros-bar">
+    <label>Filtrar por</label>
+    <select id="f-cat" onchange="aplicarFiltros()">
+      <option value="">Todas las categorías</option>
+    </select>
+    <select id="f-obs" onchange="aplicarFiltros()">
+      <option value="">Todas las observaciones</option>
+    </select>
+    <select id="f-mun" onchange="aplicarFiltros()">
+      <option value="">Todos los municipios</option>
+    </select>
+    <button id="btn-limpiar" onclick="limpiarFiltros()">✕ Limpiar filtros</button>
+    <span id="filtro-count"></span>
+  </div>
+
+  <div class="mid-row">
+    <div class="panel">
+      <div class="panel-hdr">
+        Mapa de puntos
+        <span id="map-count">0 puntos</span>
+      </div>
+      <div id="map"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr">
+        Observaciones por frecuencia
+        <span>Top 12</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart-obs"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="bot-row">
+    <div class="panel">
+      <div class="panel-hdr">Análisis rápido</div>
+      <div id="analisis-box">
+        <div class="empty-state">Carga datos para ver el análisis</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr">
+        Registros
+        <span id="tabla-count">—</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha · Hora</th>
+              <th>Categoría</th>
+              <th>Observación</th>
+              <th>AGEB · Municipio</th>
+              <th>Grado</th>
+              <th>Notas</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-body">
+            <tr><td colspan="6" class="empty-state">Sin registros</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+var SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwkC3tgchXcp3ZbtKJRhp2vOVErAMJs9SQCmVfTYvkw3wJ0g3iRxdJz5zvjtMpEPx8T/exec';
+
+var todosLosRegistros = [];
+
+// ── MAPA ───────────────────────────────────────────────────────────────
+var map = L.map('map', { zoomControl:true, attributionControl:false });
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom:20 }).addTo(map);
+map.setView([25.67, -100.31], 11);
+
+var heatLayer    = null;
+var clusterLayer = null;
+var ZOOM_UMBRAL  = 13; // < umbral = heatmap | >= umbral = clusters+puntos
+
+function actualizarCapas() {
+  var z = map.getZoom();
+  if (heatLayer)    { if (z <  ZOOM_UMBRAL) map.addLayer(heatLayer);    else map.removeLayer(heatLayer); }
+  if (clusterLayer) { if (z >= ZOOM_UMBRAL) map.addLayer(clusterLayer); else map.removeLayer(clusterLayer); }
+}
+map.on('zoomend', actualizarCapas);
+
+function catColor(cat) {
+  var c = String(cat||'').toLowerCase();
+  if (c.indexOf('incidencia') >= 0) return '#D85A30';
+  if (c.indexOf('educ')       >= 0) return '#5B9BD5';
+  if (c.indexOf('salud')      >= 0) return '#6fcf7e';
+  if (c.indexOf('vivienda')   >= 0) return '#C9A84C';
+  return '#888';
+}
+
+function catClass(cat) {
+  var c = String(cat||'').toLowerCase();
+  if (c.indexOf('incidencia') >= 0) return 'tag-inc';
+  if (c.indexOf('educ')       >= 0) return 'tag-edu';
+  if (c.indexOf('salud')      >= 0) return 'tag-sal';
+  if (c.indexOf('vivienda')   >= 0) return 'tag-viv';
+  return 'tag-gen';
+}
+
+function gradoClass(g) {
+  var s = String(g||'').toLowerCase();
+  if (s.indexOf('muy') >= 0) return 'grado-muy-alto';
+  if (s.indexOf('alto') >= 0) return 'grado-alto';
+  if (s.indexOf('medio') >= 0) return 'grado-medio';
+  if (s.indexOf('bajo') >= 0) return 'grado-bajo';
+  return '';
+}
+
+// Corrige coordenadas que Sheets formatea con separador de miles
+// Ej: 25.78432 pegado manualmente → Sheets lo lee como 2578432
+// → dividimos por potencias de 10 hasta que caiga en rango México
+function fixCoord(val, isLat) {
+  var n = parseFloat(String(val).replace(',', '.').trim());
+  if (isNaN(n)) return NaN;
+  var minVal = isLat ? 14   : -120;
+  var maxVal = isLat ? 33   : -85;
+  if (n >= minVal && n <= maxVal) return n;  // ya está bien
+  var sign = n < 0 ? -1 : 1;
+  var abs  = Math.abs(n);
+  for (var p = 1; p <= 8; p++) {
+    var c = sign * abs / Math.pow(10, p);
+    if (c >= minVal && c <= maxVal) return c;
+  }
+  return NaN;
+}
+
+function renderMapa(registros) {
+  // Limpiar capas anteriores
+  if (heatLayer)    { map.removeLayer(heatLayer);    heatLayer    = null; }
+  if (clusterLayer) { map.removeLayer(clusterLayer); clusterLayer = null; }
+
+  var validos = [];
+  registros.forEach(function(r) {
+    var lat = fixCoord(r.lat, true);
+    var lon = fixCoord(r.lon, false);
+    if (isNaN(lat) || isNaN(lon)) return;
+    validos.push({ r:r, lat:lat, lon:lon });
+  });
+
+  document.getElementById('map-count').textContent =
+    validos.length + ' punto' + (validos.length!==1?'s':'');
+
+  if (!validos.length) return;
+
+  // ── HEATMAP (zoom bajo) ──────────────────────────────────────────
+  heatLayer = L.heatLayer(
+    validos.map(function(v){ return [v.lat, v.lon, 1]; }),
+    { radius:28, blur:22, maxZoom:ZOOM_UMBRAL,
+      gradient:{ 0.2:'#1a0a00', 0.4:'#7B2D00', 0.6:'#D85A30', 0.85:'#FF8C42', 1.0:'#FFD166' } }
+  );
+
+  // ── CLUSTERS + PUNTOS (zoom alto) ───────────────────────────────
+  clusterLayer = L.markerClusterGroup({
+    maxClusterRadius: 50,
+    showCoverageOnHover: false,
+    spiderfyOnMaxZoom: true,
+    iconCreateFunction: function(cluster) {
+      var n = cluster.getChildCount();
+      var s = n < 10 ? 34 : n < 50 ? 40 : 48;
+      return L.divIcon({
+        html: '<div style="width:'+s+'px;height:'+s+'px;border-radius:50%;background:rgba(216,90,48,.85);border:2px solid rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:11px;font-weight:700;color:#fff;box-shadow:0 0 14px rgba(216,90,48,.6)">'+n+'</div>',
+        className:'', iconSize:[s,s], iconAnchor:[s/2,s/2]
+      });
+    }
+  });
+
+  validos.forEach(function(v) {
+    var r = v.r;
+    var color = catColor(r.categoria);
+    var icon = L.divIcon({
+      className:'',
+      html:'<div style="width:12px;height:12px;border-radius:50%;background:'+color+';border:2px solid rgba(255,255,255,.8);box-shadow:0 0 6px rgba(0,0,0,.6)"></div>',
+      iconSize:[12,12], iconAnchor:[6,6]
+    });
+    var popup =
+      '<b style="font-size:11px">'+esc(r.observacion||r.categoria||'—')+'</b>'+
+      '<br><span style="color:#888;font-size:10px">'+
+      esc(String(r.fecha||''))+' '+esc(String(r.hora||''))+
+      (r.ageb?'<br>AGEB '+esc(String(r.ageb)):'')+
+      (r.municipio?' · '+esc(String(r.municipio)):'')+
+      (r.notas?'<br><i style="color:#aaa">'+esc(String(r.notas))+'</i>':'')+
+      '</span>';
+    clusterLayer.addLayer(L.marker([v.lat,v.lon],{icon:icon}).bindPopup(popup));
+  });
+
+  actualizarCapas();
+
+  try {
+    map.fitBounds(
+      L.latLngBounds(validos.map(function(v){return [v.lat,v.lon];})),
+      { padding:[30,30], maxZoom:15 }
+    );
+  } catch(e) {}
+}
+
+// ── CHART ──────────────────────────────────────────────────────────────
+var chartObs = null;
+
+function renderChart(registros) {
+  var freq = {};
+  registros.forEach(function(r) {
+    var obs = String(r.observacion || '').trim() || '(sin obs.)';
+    freq[obs] = (freq[obs] || 0) + 1;
+  });
+
+  var sorted = Object.entries(freq).sort(function(a,b){ return b[1]-a[1]; }).slice(0,12);
+  var labels = sorted.map(function(x){ var l=x[0]; return l.length>24?l.slice(0,24)+'…':l; });
+  var values = sorted.map(function(x){ return x[1]; });
+  var colors = sorted.map(function(_,i){ return 'rgba(216,90,48,'+(1-i*0.06)+')'; });
+
+  if (chartObs) { chartObs.destroy(); chartObs = null; }
+  var ctx = document.getElementById('chart-obs').getContext('2d');
+  chartObs = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, borderRadius: 2 }] },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1a1a', borderColor: '#2a2a2a', borderWidth: 1,
+          titleColor: '#e8e4dc', bodyColor: '#777',
+          titleFont: { family:"'IBM Plex Mono',monospace", size:11 },
+          bodyFont:  { family:"'IBM Plex Mono',monospace", size:10 },
+          callbacks: {
+            title: function(i){ return sorted[i[0].dataIndex][0]; },
+            label: function(i){ return ' '+i.raw+' registros'; }
+          }
+        }
+      },
+      scales: {
+        x: { grid:{color:'#1e1e1e'}, ticks:{color:'#555',font:{family:"'IBM Plex Mono',monospace",size:9}}, border:{color:'#232323'} },
+        y: { grid:{display:false}, ticks:{color:'#888',font:{family:"'IBM Plex Mono',monospace",size:9}}, border:{color:'#232323'} }
+      }
+    }
+  });
+}
+
+// ── ANÁLISIS ───────────────────────────────────────────────────────────
+function renderAnalisis(registros) {
+  if (!registros.length) {
+    document.getElementById('analisis-box').innerHTML = '<div class="empty-state">Sin datos</div>';
+    return;
+  }
+  var byMun={}, byObs={}, byCat={}, fechas=[];
+  registros.forEach(function(r) {
+    var mun=String(r.municipio||'—').trim();
+    var obs=String(r.observacion||'(general)').trim();
+    var cat=String(r.categoria||'—').trim();
+    var f=String(r.fecha||'').trim();
+    byMun[mun]=(byMun[mun]||0)+1;
+    byObs[obs]=(byObs[obs]||0)+1;
+    byCat[cat]=(byCat[cat]||0)+1;
+    if(f) fechas.push(f);
+  });
+  var topMun=Object.entries(byMun).sort(function(a,b){return b[1]-a[1];}).slice(0,3);
+  var topObs=Object.entries(byObs).sort(function(a,b){return b[1]-a[1];}).slice(0,3);
+  var topCat=Object.entries(byCat).sort(function(a,b){return b[1]-a[1];})[0];
+  var dias=(new Set(fechas)).size;
+  var prom=dias>0?(registros.length/dias).toFixed(1):'—';
+
+  var html='';
+  html+='<div class="analisis-item"><div class="analisis-icon">📍</div><div>';
+  html+='<div class="analisis-ttl">Top municipios</div><div class="analisis-val">';
+  topMun.forEach(function(m,i){html+=(i===0?'<b>':'')+m[0]+(i===0?'</b>':'')+' — '+m[1]+' reg.<br>';});
+  html+='</div></div></div>';
+
+  html+='<div class="analisis-item"><div class="analisis-icon">⚠</div><div>';
+  html+='<div class="analisis-ttl">Observaciones frecuentes</div><div class="analisis-val">';
+  topObs.forEach(function(o,i){html+=(i===0?'<b>':'')+o[0]+(i===0?'</b>':'')+' — '+o[1]+' casos<br>';});
+  html+='</div></div></div>';
+
+  html+='<div class="analisis-item"><div class="analisis-icon">📊</div><div>';
+  html+='<div class="analisis-ttl">Ritmo de campo</div>';
+  html+='<div class="analisis-val"><b>'+prom+'</b> reg./día · <b>'+dias+'</b> día'+(dias!==1?'s':'')+' de trabajo<br>';
+  html+='Categoría principal: <b>'+(topCat?topCat[0]:'—')+'</b></div>';
+  html+='</div></div>';
+
+  document.getElementById('analisis-box').innerHTML=html;
+}
+
+// ── KPIs ───────────────────────────────────────────────────────────────
+function renderKPIs(registros) {
+  document.getElementById('kpi-total').textContent = registros.length;
+  document.getElementById('kpi-total-sub').textContent = registros.length+' observaciones';
+
+  var munSet={};
+  registros.forEach(function(r){ var m=String(r.municipio||'').trim(); if(m) munSet[m]=1; });
+  var muns=Object.keys(munSet);
+  document.getElementById('kpi-mun').textContent=muns.length;
+  document.getElementById('kpi-mun-sub').textContent=muns.slice(0,2).join(', ')+(muns.length>2?' +'+( muns.length-2):'');
+
+  var freq={};
+  registros.forEach(function(r){ var o=String(r.observacion||'').trim(); if(o) freq[o]=(freq[o]||0)+1; });
+  var top=Object.entries(freq).sort(function(a,b){return b[1]-a[1];})[0];
+  if(top){
+    var lbl=top[0].length>16?top[0].slice(0,16)+'…':top[0];
+    document.getElementById('kpi-top-val').textContent=lbl;
+    document.getElementById('kpi-top-sub').textContent=top[1]+' registros';
+  }
+
+  if(registros.length>0){
+    var ult=registros[registros.length-1];
+    document.getElementById('kpi-ult').textContent=String(ult.hora||'—').trim();
+    document.getElementById('kpi-ult-sub').textContent=String(ult.fecha||'').trim()+(ult.municipio?' · '+String(ult.municipio).trim():'');
+  }
+}
+
+// ── TABLA ──────────────────────────────────────────────────────────────
+function renderTabla(registros) {
+  document.getElementById('tabla-count').textContent=registros.length+' registro'+(registros.length!==1?'s':'');
+  if(!registros.length){
+    document.getElementById('tabla-body').innerHTML='<tr><td colspan="6" class="empty-state">Sin registros para los filtros aplicados</td></tr>';
+    return;
+  }
+  var html=registros.slice().reverse().slice(0,100).map(function(r){
+    return '<tr>'+
+      '<td style="white-space:nowrap;color:var(--mut2)">'+esc(String(r.fecha||''))+'<br>'+esc(String(r.hora||''))+'</td>'+
+      '<td><span class="tag '+catClass(r.categoria)+'">'+esc(String(r.categoria||''))+'</span></td>'+
+      '<td>'+esc(String(r.observacion||''))+'</td>'+
+      '<td style="color:var(--mut2)">'+(r.ageb?esc(String(r.ageb))+' · ':'')+esc(String(r.municipio||''))+'</td>'+
+      '<td class="'+gradoClass(r.grado_marginacion)+'">'+esc(String(r.grado_marginacion||''))+'</td>'+
+      '<td style="color:var(--mut2);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(String(r.notas||''))+'</td>'+
+    '</tr>';
+  }).join('');
+  document.getElementById('tabla-body').innerHTML=html;
+}
+
+// ── FILTROS ────────────────────────────────────────────────────────────
+function poblarFiltros(registros) {
+  var cats={}, obs={}, muns={};
+  registros.forEach(function(r){
+    var c=String(r.categoria||'').trim();
+    var o=String(r.observacion||'').trim();
+    var m=String(r.municipio||'').trim();
+    if(c) cats[c]=1;
+    if(o) obs[o]=1;
+    if(m) muns[m]=1;
+  });
+  function llenar(id, opciones) {
+    var sel=document.getElementById(id);
+    var val=sel.value;
+    while(sel.options.length>1) sel.remove(1);
+    Object.keys(opciones).sort().forEach(function(k){
+      var opt=document.createElement('option');
+      opt.value=k; opt.textContent=k;
+      sel.appendChild(opt);
+    });
+    if(val) sel.value=val;
+  }
+  llenar('f-cat', cats);
+  llenar('f-obs', obs);
+  llenar('f-mun', muns);
+}
+
+function aplicarFiltros() {
+  var fCat=document.getElementById('f-cat').value;
+  var fObs=document.getElementById('f-obs').value;
+  var fMun=document.getElementById('f-mun').value;
+
+  var filtrados=todosLosRegistros.filter(function(r){
+    if(fCat && String(r.categoria||'').trim()!==fCat) return false;
+    if(fObs && String(r.observacion||'').trim()!==fObs) return false;
+    if(fMun && String(r.municipio||'').trim()!==fMun) return false;
+    return true;
+  });
+
+  var activos=[fCat,fObs,fMun].filter(Boolean).length;
+  document.getElementById('filtro-count').textContent=
+    activos>0?'↳ '+filtrados.length+' resultado'+(filtrados.length!==1?'s':''):'';
+
+  renderKPIs(filtrados);
+  renderMapa(filtrados);
+  renderChart(filtrados);
+  renderAnalisis(filtrados);
+  renderTabla(filtrados);
+}
+
+function limpiarFiltros() {
+  document.getElementById('f-cat').value='';
+  document.getElementById('f-obs').value='';
+  document.getElementById('f-mun').value='';
+  aplicarFiltros();
+}
+
+// ── CARGA ──────────────────────────────────────────────────────────────
+function cargarDatos() {
+  var btn=document.getElementById('btn-reload');
+  var estado=document.getElementById('estado');
+  btn.disabled=true; btn.textContent='↺ Cargando…';
+  estado.className='loading'; estado.textContent='● Cargando';
+
+  fetch(SHEETS_URL)
+    .then(function(res){ if(!res.ok) throw new Error('HTTP '+res.status); return res.json(); })
+    .then(function(data){
+      todosLosRegistros=data.registros||[];
+
+      // Debug: ver estructura de datos
+      if(todosLosRegistros.length>0){
+        console.log('✓ Registros recibidos:', todosLosRegistros.length);
+        console.log('Primer registro:', JSON.stringify(todosLosRegistros[0]));
+      }
+
+      poblarFiltros(todosLosRegistros);
+      aplicarFiltros();
+
+      var now=new Date();
+      document.getElementById('last-update').textContent=
+        'Actualizado: '+now.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      estado.className='ok';
+      estado.textContent='● '+todosLosRegistros.length+' registros';
+    })
+    .catch(function(err){
+      console.error('Error:', err);
+      estado.className='err'; estado.textContent='✕ '+err.message;
+      document.getElementById('last-update').textContent='Error al cargar';
+    })
+    .finally(function(){ btn.disabled=false; btn.textContent='↺ Actualizar'; });
+}
+
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+cargarDatos();
+</script>
+</body>
+</html>
