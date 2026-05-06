@@ -101,6 +101,8 @@ tbody td{padding:7px 10px;font-size:11px}
   .kpi-row{grid-template-columns:repeat(2,1fr)}
   .mid-row,.bot-row{grid-template-columns:1fr;height:auto}
   #map{height:280px}
+  .chart-wrap{height:300px;min-height:300px}
+  .bot-row .panel:last-child{min-height:300px}
 }
 </style>
 </head>
@@ -364,8 +366,11 @@ function renderChart(registros) {
   var colors = sorted.map(function(_,i){ return 'rgba(216,90,48,'+(1-i*0.06)+')'; });
 
   if (chartObs) { chartObs.destroy(); chartObs = null; }
-  var ctx = document.getElementById('chart-obs').getContext('2d');
-  chartObs = new Chart(ctx, {
+
+  // Pequeño delay para que el DOM tenga dimensiones antes de renderizar
+  setTimeout(function() {
+    var ctx = document.getElementById('chart-obs').getContext('2d');
+    chartObs = new Chart(ctx, {
     type: 'bar',
     data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, borderRadius: 2 }] },
     options: {
@@ -389,6 +394,7 @@ function renderChart(registros) {
       }
     }
   });
+  }, 50); // fin setTimeout
 }
 
 // ── ANÁLISIS ───────────────────────────────────────────────────────────
