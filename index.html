@@ -47,20 +47,20 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:var(--fo
 .kpi-sub{font-size:10px;color:var(--mut2)}
 
 .filtros-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--surf);border:1px solid var(--brd);border-radius:4px;padding:10px 14px}
-.filtros-bar label{font-size:9px;color:var(--mut2);letter-spacing:2px;text-transform:uppercase;margin-right:4px}
-.filtros-bar select{background:var(--bg);border:1px solid var(--brd2);border-radius:3px;color:var(--txt);font-family:var(--font);font-size:11px;padding:5px 8px;cursor:pointer;outline:none;min-width:150px}
+.filtros-bar label{font-size:9px;color:var(--mut2);letter-spacing:2px;text-transform:uppercase}
+.filtros-bar select{background:var(--bg);border:1px solid var(--brd2);border-radius:3px;color:var(--txt);font-family:var(--font);font-size:11px;padding:5px 8px;cursor:pointer;outline:none;flex:1;min-width:130px;max-width:200px}
 .filtros-bar select:focus{border-color:var(--acc)}
 .filtros-bar select option{background:var(--surf2)}
-#btn-limpiar{padding:5px 12px;background:transparent;border:1px solid var(--brd2);border-radius:3px;color:var(--mut2);font-family:var(--font);font-size:9px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all .2s}
+#btn-limpiar{padding:5px 12px;background:transparent;border:1px solid var(--brd2);border-radius:3px;color:var(--mut2);font-family:var(--font);font-size:9px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all .2s;white-space:nowrap}
 #btn-limpiar:hover{border-color:var(--acc);color:var(--acc)}
-#filtro-count{font-size:10px;color:var(--acc);margin-left:auto}
+#filtro-count{font-size:10px;color:var(--acc)}
 
 .mid-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;height:360px}
 .panel{background:var(--surf);border:1px solid var(--brd);border-radius:4px;overflow:hidden;display:flex;flex-direction:column}
 .panel-hdr{padding:9px 14px;border-bottom:1px solid var(--brd);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--acc);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .panel-hdr span{color:var(--mut2);font-size:9px}
-#map{flex:1;min-height:0}
-.chart-wrap{flex:1;padding:10px;position:relative;min-height:0}
+#map{flex:1;min-height:280px}
+.chart-wrap{flex:1;padding:10px;position:relative;min-height:260px}
 
 .bot-row{display:grid;grid-template-columns:320px 1fr;gap:12px}
 .analisis-item{padding:11px 14px;border-bottom:1px solid var(--brd);display:flex;align-items:flex-start;gap:10px}
@@ -100,9 +100,11 @@ tbody td{padding:7px 10px;font-size:11px}
 @media(max-width:900px){
   .kpi-row{grid-template-columns:repeat(2,1fr)}
   .mid-row,.bot-row{grid-template-columns:1fr;height:auto}
-  #map{height:280px}
+  .mid-row{height:auto}
+  #map{height:300px;min-height:300px}
   .chart-wrap{height:300px;min-height:300px}
-  .bot-row .panel:last-child{min-height:300px}
+  .bot-row .panel:last-child{min-height:280px}
+  .filtros-bar select{max-width:100%;min-width:0}
 }
 </style>
 </head>
@@ -300,11 +302,13 @@ function renderMapa(registros) {
   if (!validos.length) return;
 
   // ── HEATMAP (zoom bajo) ──────────────────────────────────────────
-  heatLayer = L.heatLayer(
-    validos.map(function(v){ return [v.lat, v.lon, 1]; }),
-    { radius:28, blur:22, maxZoom:ZOOM_UMBRAL,
-      gradient:{ 0.2:'#1a0a00', 0.4:'#7B2D00', 0.6:'#D85A30', 0.85:'#FF8C42', 1.0:'#FFD166' } }
-  );
+  var heatPoints = validos.map(function(v){ return [v.lat, v.lon, 1]; });
+  try {
+    heatLayer = L.heatLayer(heatPoints, {
+      radius:28, blur:22, maxZoom:ZOOM_UMBRAL,
+      gradient:{ 0.2:'#1a0a00', 0.4:'#7B2D00', 0.6:'#D85A30', 0.85:'#FF8C42', 1.0:'#FFD166' }
+    });
+  } catch(e) { console.warn('heatLayer error:', e); heatLayer = null; }
 
   // ── CLUSTERS + PUNTOS (zoom alto) ───────────────────────────────
   clusterLayer = L.markerClusterGroup({
@@ -462,8 +466,14 @@ function renderKPIs(registros) {
 
   if(registros.length>0){
     var ult=registros[registros.length-1];
-    document.getElementById('kpi-ult').textContent=String(ult.hora||'—').trim();
-    document.getElementById('kpi-ult-sub').textContent=String(ult.fecha||'').trim()+(ult.municipio?' · '+String(ult.municipio).trim():'');
+    var hora = String(ult.hora||'').trim();
+    var fecha = String(ult.fecha||'').trim();
+    // Si la fecha viene como ISO string (2026-05-06T06:00:00.000Z), formatearla
+    if (fecha.indexOf('T') >= 0) {
+      try { fecha = new Date(fecha).toLocaleDateString('es-MX'); } catch(e) {}
+    }
+    document.getElementById('kpi-ult').textContent = hora || fecha.slice(0,10);
+    document.getElementById('kpi-ult-sub').textContent = fecha + (ult.municipio?' · '+String(ult.municipio).trim():'');
   }
 }
 
@@ -564,6 +574,9 @@ function cargarDatos() {
 
       poblarFiltros(todosLosRegistros);
       aplicarFiltros();
+
+      // Forzar redibujado del mapa después de que el DOM se estabilice
+      setTimeout(function() { map.invalidateSize(); }, 100);
 
       var now=new Date();
       document.getElementById('last-update').textContent=
